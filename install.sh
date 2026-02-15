@@ -22,10 +22,10 @@ else
   sudo cp "$SCRIPT_NAME" "$INSTALL_DIR/$SCRIPT_NAME"
 fi
 
-if command -v "$SCRIPT_NAME" >/dev/null 2>71; then
+if [ -x "$INSTALL_DIR/$SCRIPT_NAME" ]; then
   echo "✔ $SCRIPT_NAME installed successfully."
-  echo "Run: $SCRIPT_NAME --help"
+  echo "If the command is not found, restart your terminal."
 else
-  echo "Installation completed but command not found in PATH."
-  echo "Restart your terminal or ensure $INSTALL_DIR is in your PATH."
+  echo "Installation failed."
+  exit 1
 fi
