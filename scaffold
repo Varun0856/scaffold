@@ -1,49 +1,193 @@
 #!/bin/bash
 
-project_name=$1
+parse_args() {
+  if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    show_help
+  fi
 
-if [ -z "$project_name" ]; then
-  echo "Usage: scaffold <project_name>" >&2
-  exit 2
-fi
+  project_name="$1"
+  if [ -z "$project_name" ]; then
+    echo "Usage: scaffold <project_name>" >&2
+    exit 2
+  fi
+  shift
+  lang="generic"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --lang)
+      if [ -z "$2" ] || [[ "$2" == -* ]]; then
+        echo "Error: --lang requires a language argument" >&2
+        exit 1
+      fi
 
-if [ -e "$project_name" ]; then
-  echo "Error: $project_name already exists" >&2
-  exit 1
-fi
+      lang="$2"
+      shift 2
+      ;;
+    -h | --help)
+      show_help
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+    esac
+  done
+}
 
-if ! command -v git &>/dev/null; then
-  echo "Error: git is not installed" >&2
-  exit 1
-fi
+validate_input() {
+  if [ -e "$project_name" ]; then
+    echo "Error: $project_name already exists" >&2
+    exit 1
+  fi
 
-parent_dir=$(dirname "$project_name")
+  if [[ ! "$lang" =~ ^(node|generic|go)$ ]]; then
+    echo "Error: Unsupported language $lang" >&2
+    exit 1
+  fi
+}
 
-if [ ! -d "$parent_dir" ] || [ ! -w "$parent_dir" ]; then
-  echo "Parent directory $parent_dir does not exist or is not writable" >&2
-  exit 1
-fi
+validate_environment() {
+  if ! command -v git &>/dev/null; then
+    echo "Error: git is not installed" >&2
+    exit 1
+  fi
 
-mkdir "$project_name"
-cd "$project_name" || exit 1
-if ! git init -b main >/dev/null 2>&1; then
-  echo "Error: Failed to initialize git repository" >&2
-  exit 1
-fi
+  if [ "$lang" = "go" ]; then
+    if ! command -v go &>/dev/null; then
+      echo "Error: go is not installed" >&2
+      exit 1
+    fi
+  fi
 
-echo "# $project_name" >README.md
-echo ".DS_Store" >>.gitignore
-echo "*.log" >>.gitignore
-mkdir "src" || exit 1
+  if [ "$lang" = "node" ]; then
+    if ! command -v npm &>/dev/null; then
+      echo "Error: npm is not installed" >&2
+      exit 1
+    fi
+  fi
+}
 
-if ! git add .; then
-  echo "Error: Failed to add files to git" >&2
-  exit 1
-fi
+create_directory_and_initialize_git() {
 
-if ! git commit -m "Initial commit"; then
-  echo "Error: Failed to commit files to git" >&2
-  exit 1
-fi
+  local project_name="$1"
+  local parent_dir=$(dirname "$project_name")
 
-echo "Project $project_name created successfully"
+  if [ ! -d "$parent_dir" ] || [ ! -w "$parent_dir" ]; then
+    echo "Parent directory $parent_dir does not exist or is not writable" >&2
+    exit 1
+  fi
+
+  mkdir "$project_name"
+  cd "$project_name" || exit 1
+
+  if ! git init -b main >/dev/null 2>&1; then
+    echo "Error: Failed to initialize git repository" >&2
+    exit 1
+  fi
+}
+
+finalize_project() {
+  if ! git add .; then
+    echo "Error: Failed to add files to git" >&2
+    exit 1
+  fi
+
+  if ! git commit -m "Initial commit"; then
+    echo "Error: Failed to commit files to git" >&2
+    exit 1
+  fi
+}
+
+show_help() {
+  cat <<EOF
+Scaffold — Project initializer CLI
+
+Usage:
+  scaffold <project_name> [--lang <generic|go|node>]
+
+Options:
+  --lang <type>   Select project template (default: generic)
+  -h, --help      Show this help message
+
+Examples:
+  scaffold my-app
+  scaffold api --lang go
+  scaffold web --lang node
+EOF
+  exit 0
+}
+
+create_generic() {
+  local project_name="$1"
+  create_directory_and_initialize_git "$project_name"
+  echo "# $project_name" >README.md
+  echo ".DS_Store" >>.gitignore
+  echo "*.log" >>.gitignore
+  mkdir "src" || exit 1
+
+  finalize_project
+
+  echo "Project $project_name created successfully"
+}
+
+create_go() {
+  local project_name="$1"
+  create_directory_and_initialize_git "$project_name"
+
+  if ! go mod init "$project_name"; then
+    echo "Error: Failed to initialize go module" >&2
+    exit 1
+  fi
+
+  mkdir "cmd" || exit 1
+  echo "# $project_name" >README.md
+  echo "bin/" >>.gitignore
+  echo "pkg/" >>.gitignore
+  echo "*.exe" >>.gitignore
+
+  finalize_project
+
+  echo "Go project $project_name with git initialization created successfully"
+
+}
+
+create_node() {
+  local project_name="$1"
+  create_directory_and_initialize_git "$project_name"
+
+  if ! npm init -y >/dev/null 2>&1; then
+    echo "Error: Failed to initialize npm project" >&2
+    exit 1
+  fi
+
+  mkdir "src" || exit 1
+
+  echo "# $project_name" >README.md
+  echo "node_modules/" >>.gitignore
+  echo "dist/" >>.gitignore
+  echo "*.log" >>.gitignore
+
+  finalize_project
+
+  echo "Project $project_name created successfully with git and npm initialization"
+}
+
+main() {
+  parse_args "$@"
+  validate_input
+  validate_environment
+  # create_generic "$project_name"
+  case "$lang" in
+  generic)
+    create_generic "$project_name"
+    ;;
+  go)
+    create_go "$project_name"
+    ;;
+  node)
+    create_node "$project_name"
+    ;;
+  esac
+}
+
+main "$@"
