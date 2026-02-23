@@ -1,8 +1,19 @@
 #!/bin/bash
 
+VERSION="2.1.0"
+
+show_version() {
+  echo "scaffold v$VERSION"
+  exit 0
+}
+
 parse_args() {
   if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     show_help
+  fi
+
+  if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+    show_version
   fi
 
   project_name="$1"
@@ -70,7 +81,8 @@ validate_environment() {
 create_directory_and_initialize_git() {
 
   local project_name="$1"
-  local parent_dir=$(dirname "$project_name")
+  local parent_dir
+  parent_dir=$(dirname "$project_name")
 
   if [ ! -d "$parent_dir" ] || [ ! -w "$parent_dir" ]; then
     echo "Parent directory $parent_dir does not exist or is not writable" >&2
